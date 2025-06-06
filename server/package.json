@@ -1,0 +1,21 @@
+{
+  "name": "soql-runner-server",
+  "version": "1.0.0",
+  "description": "Backend server for Salesforce SOQL Runner",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "jsforce": "^2.0.0-beta.29",
+    "dotenv": "^16.3.1",
+    "express-session": "^1.17.3",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+} 
