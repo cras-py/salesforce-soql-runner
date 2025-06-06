@@ -13,7 +13,10 @@ import {
   Chip,
   Card,
   CardContent,
-  CardActions
+  CardActions,
+  FormControlLabel,
+  Checkbox,
+  Divider
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -28,7 +31,14 @@ interface SavedQuery {
   name: string;
   query: string;
   createdAt: string;
+  updatedAt?: string;
   description?: string;
+  exportSettings?: {
+    customFilename?: string;
+    exportPath?: string;
+    autoExport?: boolean;
+    hasSelectedDirectory?: boolean;
+  };
 }
 
 export default function SavedQueries() {
@@ -38,6 +48,9 @@ export default function SavedQueries() {
   const [queryName, setQueryName] = useState('');
   const [queryText, setQueryText] = useState('');
   const [queryDescription, setQueryDescription] = useState('');
+  const [customFilename, setCustomFilename] = useState('');
+  const [exportPath, setExportPath] = useState('');
+  const [autoExport, setAutoExport] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,15 +73,31 @@ export default function SavedQueries() {
     setQueryName(query.name);
     setQueryText(query.query);
     setQueryDescription(query.description || '');
+    setCustomFilename(query.exportSettings?.customFilename || '');
+    setExportPath(query.exportSettings?.exportPath || '');
+    setAutoExport(query.exportSettings?.autoExport || false);
     setEditDialogOpen(true);
   };
 
   const saveEditedQuery = () => {
     if (!selectedQuery || !queryName.trim() || !queryText.trim()) return;
 
+    const exportSettings = (customFilename || exportPath || autoExport) ? {
+      customFilename: customFilename || undefined,
+      exportPath: exportPath || undefined,
+      autoExport: autoExport,
+      hasSelectedDirectory: !!exportPath // Indicate that a directory was configured
+    } : undefined;
+
     const updatedQueries = savedQueries.map(q => 
       q.id === selectedQuery.id 
-        ? { ...q, name: queryName, query: queryText, description: queryDescription }
+        ? { 
+            ...q, 
+            name: queryName, 
+            query: queryText, 
+            description: queryDescription,
+            exportSettings 
+          }
         : q
     );
     
@@ -83,6 +112,9 @@ export default function SavedQueries() {
     setQueryName('');
     setQueryText('');
     setQueryDescription('');
+    setCustomFilename('');
+    setExportPath('');
+    setAutoExport(false);
   };
 
   const runQuery = (query: SavedQuery) => {
@@ -177,11 +209,41 @@ export default function SavedQueries() {
                 >
                   {query.query}
                 </Typography>
-                <Chip 
-                  label={formatDate(query.createdAt)} 
-                  size="small" 
-                  variant="outlined" 
-                />
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Chip 
+                    label={query.updatedAt ? `Updated ${formatDate(query.updatedAt)}` : formatDate(query.createdAt)} 
+                    size="small" 
+                    variant="outlined"
+                    color={query.updatedAt ? "success" : "default"}
+                  />
+                  {query.exportSettings?.customFilename && (
+                    <Chip 
+                      label={`📁 ${query.exportSettings.customFilename}`} 
+                      size="small" 
+                      color="info"
+                      variant="outlined"
+                      title="Custom export filename saved"
+                    />
+                  )}
+                  {query.exportSettings?.exportPath && (
+                    <Chip 
+                      label={`📂 ${query.exportSettings.exportPath}`} 
+                      size="small" 
+                      color="primary"
+                      variant="outlined"
+                      title="Export folder path saved"
+                    />
+                  )}
+                  {query.exportSettings?.autoExport && (
+                    <Chip 
+                      label="⚡ Auto Export" 
+                      size="small" 
+                      color="success"
+                      variant="outlined"
+                      title="Auto-export enabled"
+                    />
+                  )}
+                </Box>
               </CardContent>
               <CardActions sx={{ justifyContent: 'space-between' }}>
                 <Box>
@@ -252,8 +314,58 @@ export default function SavedQueries() {
             variant="outlined"
             value={queryText}
             onChange={(e) => setQueryText(e.target.value)}
-            sx={{ fontFamily: 'monospace' }}
+            sx={{ fontFamily: 'monospace', mb: 2 }}
           />
+          
+          <Divider sx={{ my: 2 }} />
+          
+          <Typography variant="h6" gutterBottom>
+            Export Settings
+          </Typography>
+          <Typography variant="body2" color="textSecondary" gutterBottom>
+            Configure custom export behavior for this query
+          </Typography>
+          
+          <TextField
+            margin="dense"
+            label="Custom Filename (optional)"
+            fullWidth
+            variant="outlined"
+            value={customFilename}
+            onChange={(e) => setCustomFilename(e.target.value)}
+            placeholder="e.g., account_export.csv"
+            sx={{ mb: 2 }}
+            helperText="If specified, exports will use this filename instead of auto-generated names"
+          />
+          
+          <TextField
+            margin="dense"
+            label="Export Path (optional)"
+            fullWidth
+            variant="outlined"
+            value={exportPath}
+            onChange={(e) => setExportPath(e.target.value)}
+            placeholder="e.g., C:\\Reports\\Salesforce\\ or /Users/yourname/Reports/"
+            sx={{ mb: 2 }}
+            helperText="Folder path where files should be saved (if browser supports directory selection)"
+          />
+          
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={autoExport}
+                onChange={(e) => setAutoExport(e.target.checked)}
+              />
+            }
+            label="Auto-export after query execution"
+            sx={{ mb: 1 }}
+          />
+          
+          {autoExport && (
+            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', ml: 4, mb: 2 }}>
+              When enabled, query results will automatically download after execution
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={closeEditDialog}>Cancel</Button>
