@@ -21,6 +21,7 @@ import {
   Search as SearchIcon,
   TableView as TableViewIcon,
   Bookmark as BookmarkIcon,
+  Analytics as AnalyticsIcon,
   Logout as LogoutIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,6 +52,7 @@ export default function Layout({ children }: LayoutProps) {
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
     { text: 'Query Runner', icon: <SearchIcon />, path: '/query' },
     { text: 'Data Inspector', icon: <TableViewIcon />, path: '/inspect' },
+    { text: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
     { text: 'Saved Queries', icon: <BookmarkIcon />, path: '/saved' },
   ];
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -21,7 +21,8 @@ import { DataGrid, GridColDef, GridFilterModel } from '@mui/x-data-grid';
 import {
   Analytics as AnalyticsIcon,
   FilterList as FilterIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  BarChart as ChartIcon
 } from '@mui/icons-material';
 import { saveAs } from 'file-saver';
 
@@ -48,6 +49,7 @@ function TabPanel(props: TabPanelProps) {
 
 export default function DataInspector() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [data, setData] = useState<any[]>([]);
   const [columns, setColumns] = useState<GridColDef[]>([]);
@@ -249,6 +251,18 @@ export default function DataInspector() {
     saveAs(blob, `filtered_data_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
+  const createChart = () => {
+    console.log('Navigating to Analytics with current data');
+    navigate('/analytics', { 
+      state: { 
+        data: data,
+        query: query,
+        totalSize: totalSize,
+        fetchedCount: fetchedCount
+      } 
+    });
+  };
+
   if (data.length === 0) {
     return (
       <Box>
@@ -312,10 +326,20 @@ export default function DataInspector() {
           >
             Export Filtered Data
           </Button>
+          
+          <Button
+            variant="outlined"
+            startIcon={<ChartIcon />}
+            onClick={createChart}
+            color="secondary"
+          >
+            Create Chart
+          </Button>
+          
           <Chip label={`${data.length} rows`} color="primary" variant="outlined" />
         </Box>
         
-        <Box sx={{ height: 700, width: '100%', overflow: 'auto' }}>
+        <Box sx={{ height: 700, width: '100%' }}>
           <DataGrid
             rows={data.map((row, index) => ({ id: index, ...row }))}
             columns={columns}
@@ -324,37 +348,24 @@ export default function DataInspector() {
                 paginationModel: { page: 0, pageSize: 100 },
               },
             }}
-            pageSizeOptions={[25, 50, 100]}
+            pageSizeOptions={[25, 50, 100, 250, 500]}
             disableRowSelectionOnClick
             disableColumnResize={false}
             disableVirtualization={false}
             filterModel={filterModel}
             onFilterModelChange={setFilterModel}
             sx={{
-              minWidth: 'max-content',
-              '& .MuiDataGrid-root': {
-                overflow: 'visible',
-              },
-              '& .MuiDataGrid-main': {
-                overflow: 'visible',
-              },
-              '& .MuiDataGrid-virtualScroller': {
-                overflow: 'visible',
-              },
+              width: '100%',
+              height: '100%',
               '& .MuiDataGrid-cell': {
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
               },
               '& .MuiDataGrid-columnHeaders': {
-                position: 'sticky',
-                top: 0,
-                zIndex: 1,
                 backgroundColor: 'background.paper',
               },
               '& .MuiDataGrid-footerContainer': {
-                position: 'sticky',
-                bottom: 0,
                 backgroundColor: 'background.paper',
                 borderTop: '1px solid',
                 borderColor: 'divider',

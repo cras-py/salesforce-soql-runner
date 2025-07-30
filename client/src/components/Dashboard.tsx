@@ -11,13 +11,17 @@ import {
   List,
   ListItem,
   ListItemText,
-  Chip
+  Chip,
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import {
   Search as SearchIcon,
   TableView as TableViewIcon,
   Bookmark as BookmarkIcon,
-  Storage as StorageIcon
+  Storage as StorageIcon,
+  PlayArrow as PlayIcon,
+  History as HistoryIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -25,6 +29,20 @@ interface SalesforceObject {
   name: string;
   label: string;
   queryable: boolean;
+}
+
+interface SavedQuery {
+  name: string;
+  query: string;
+  createdAt: string;
+  exportSettings?: any;
+}
+
+interface RecentQuery {
+  query: string;
+  timestamp: string;
+  totalSize?: number;
+  fetchedCount?: number;
 }
 
 export default function Dashboard() {
@@ -47,6 +65,98 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get recent queries from localStorage and sessionStorage
+  const getRecentQueries = (): RecentQuery[] => {
+    const recentQueries: RecentQuery[] = [];
+    
+    // Get current query from localStorage
+    try {
+      const currentResults = localStorage.getItem('currentQueryResults');
+      if (currentResults) {
+        const data = JSON.parse(currentResults);
+        if (data.query) {
+          recentQueries.push({
+            query: data.query,
+            timestamp: data.timestamp || new Date().toISOString(),
+            totalSize: data.totalSize,
+            fetchedCount: data.fetchedCount
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error reading currentQueryResults from localStorage:', error);
+    }
+
+    // Get current query from sessionStorage if different
+    try {
+      const sessionResults = sessionStorage.getItem('currentQueryResults');
+      if (sessionResults) {
+        const data = JSON.parse(sessionResults);
+        if (data.query && !recentQueries.some(q => q.query === data.query)) {
+          recentQueries.push({
+            query: data.query,
+            timestamp: data.timestamp || new Date().toISOString(),
+            totalSize: data.totalSize,
+            fetchedCount: data.fetchedCount
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error reading currentQueryResults from sessionStorage:', error);
+    }
+
+    // Get query history if available
+    try {
+      const queryHistory = localStorage.getItem('queryHistory');
+      if (queryHistory) {
+        const history = JSON.parse(queryHistory);
+        history.forEach((historyItem: RecentQuery) => {
+          if (!recentQueries.some(q => q.query === historyItem.query)) {
+            recentQueries.push(historyItem);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error reading queryHistory from localStorage:', error);
+    }
+
+    // Sort by timestamp (most recent first) and limit to 5
+    return recentQueries
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 5);
+  };
+
+  // Run a saved query
+  const runSavedQuery = (query: SavedQuery) => {
+    console.log('Dashboard: Running saved query:', query);
+    const queryData = JSON.stringify(query);
+    localStorage.setItem('loadQuery', queryData);
+    navigate('/query', { 
+      state: { 
+        loadQuery: query,
+        source: 'dashboard' 
+      } 
+    });
+  };
+
+  // Run a recent query
+  const runRecentQuery = (recentQuery: RecentQuery) => {
+    console.log('Dashboard: Running recent query:', recentQuery);
+    const queryData = {
+      name: `Recent Query (${new Date(recentQuery.timestamp).toLocaleString()})`,
+      query: recentQuery.query,
+      createdAt: recentQuery.timestamp
+    };
+    const queryDataString = JSON.stringify(queryData);
+    localStorage.setItem('loadQuery', queryDataString);
+    navigate('/query', { 
+      state: { 
+        loadQuery: queryData,
+        source: 'dashboard' 
+      } 
+    });
   };
 
   const quickActions = [
@@ -73,7 +183,8 @@ export default function Dashboard() {
     }
   ];
 
-  const savedQueries = JSON.parse(localStorage.getItem('savedQueries') || '[]');
+  const savedQueries: SavedQuery[] = JSON.parse(localStorage.getItem('savedQueries') || '[]');
+  const recentQueries = getRecentQueries();
 
   return (
     <Box>
@@ -115,7 +226,7 @@ export default function Dashboard() {
           ))}
         </Box>
 
-        {/* Available Objects and Recent Queries */}
+        {/* Available Objects, Recent Queries, and Saved Queries */}
         <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
           <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
             <Paper sx={{ p: 2, height: 400 }}>
@@ -149,20 +260,93 @@ export default function Dashboard() {
           <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
             <Paper sx={{ p: 2, height: 400 }}>
               <Typography variant="h6" gutterBottom>
+                <HistoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Recent Queries
+              </Typography>
+              {recentQueries.length === 0 ? (
+                <Typography color="textSecondary">
+                  No recent queries yet. Start by running some queries!
+                </Typography>
+              ) : (
+                <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+                  {recentQueries.map((query, index) => (
+                    <ListItem 
+                      key={index} 
+                      divider 
+                      secondaryAction={
+                        <Tooltip title="Run Query">
+                          <IconButton 
+                            edge="end" 
+                            onClick={() => runRecentQuery(query)}
+                            color="primary"
+                          >
+                            <PlayIcon />
+                          </IconButton>
+                        </Tooltip>
+                      }
+                    >
+                      <ListItemText
+                        primary={`${query.query.substring(0, 40)}...`}
+                        secondary={
+                          <Box>
+                            <Typography variant="caption" display="block">
+                              {new Date(query.timestamp).toLocaleString()}
+                            </Typography>
+                            {query.totalSize && (
+                              <Typography variant="caption" color="textSecondary">
+                                {query.fetchedCount?.toLocaleString()}/{query.totalSize?.toLocaleString()} records
+                              </Typography>
+                            )}
+                          </Box>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </Paper>
+          </Box>
+
+          <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
+            <Paper sx={{ p: 2, height: 400 }}>
+              <Typography variant="h6" gutterBottom>
                 <BookmarkIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Recent Saved Queries
               </Typography>
               {savedQueries.length === 0 ? (
                 <Typography color="textSecondary">
-                  No saved queries yet. Start by running some queries!
+                  No saved queries yet. Start by saving some queries!
                 </Typography>
               ) : (
                 <List sx={{ maxHeight: 300, overflow: 'auto' }}>
-                  {savedQueries.slice(0, 5).map((query: any, index: number) => (
-                    <ListItem key={index} divider>
+                  {savedQueries.slice(0, 5).map((query: SavedQuery, index: number) => (
+                    <ListItem 
+                      key={index} 
+                      divider
+                      secondaryAction={
+                        <Tooltip title="Run Query">
+                          <IconButton 
+                            edge="end" 
+                            onClick={() => runSavedQuery(query)}
+                            color="primary"
+                          >
+                            <PlayIcon />
+                          </IconButton>
+                        </Tooltip>
+                      }
+                    >
                       <ListItemText
                         primary={query.name}
-                        secondary={`${query.query.substring(0, 50)}...`}
+                        secondary={
+                          <Box>
+                            <Typography variant="caption" display="block">
+                              {`${query.query.substring(0, 40)}...`}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary">
+                              {new Date(query.createdAt).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                        }
                       />
                     </ListItem>
                   ))}

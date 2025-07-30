@@ -8,6 +8,7 @@ import Dashboard from './components/Dashboard';
 import QueryRunner from './components/QueryRunner';
 import DataInspector from './components/DataInspector';
 import SavedQueries from './components/SavedQueries';
+import Analytics from './components/Analytics';
 import Layout from './components/Layout';
 
 const theme = createTheme({
@@ -60,6 +61,13 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <SavedQueries />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/analytics" element={
+              <ProtectedRoute>
+                <Layout>
+                  <Analytics />
                 </Layout>
               </ProtectedRoute>
             } />

@@ -24,6 +24,7 @@ import {
   Save as SaveIcon,
   Download as DownloadIcon,
   Visibility as InspectIcon,
+  Analytics as AnalyticsIcon,
   Folder as FolderIcon,
   FolderOpen as FolderOpenIcon
 } from '@mui/icons-material';
@@ -46,7 +47,7 @@ export default function QueryRunner() {
   const [saveMode, setSaveMode] = useState<'save' | 'saveAs'>('save');
   const [replaceConfirmOpen, setReplaceConfirmOpen] = useState(false);
   const [existingQuery, setExistingQuery] = useState<any>(null);
-  const [recordLimit, setRecordLimit] = useState(10000);
+  const [recordLimit, setRecordLimit] = useState(0); // 0 = unlimited
   const [isRestoredQuery, setIsRestoredQuery] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [customExportFilename, setCustomExportFilename] = useState('');
@@ -118,14 +119,14 @@ export default function QueryRunner() {
     
     // First, check if there's a query passed through navigation state
     const navigationState = location.state as any;
-    if (navigationState?.loadQuery && navigationState?.source === 'savedQueries') {
-      console.log('Loading saved query from navigation state:', navigationState.loadQuery);
+    if (navigationState?.loadQuery && (navigationState?.source === 'savedQueries' || navigationState?.source === 'dashboard')) {
+      console.log(`Loading query from navigation state (source: ${navigationState.source}):`, navigationState.loadQuery);
       try {
         if (navigationState.loadQuery.query) {
           setQuery(navigationState.loadQuery.query);
           setLoadedQuerySettings(navigationState.loadQuery);
           
-          // Restore export settings
+          // Restore export settings if available
           if (navigationState.loadQuery.exportSettings) {
             const settings = navigationState.loadQuery.exportSettings;
             setCustomExportFilename(settings.customFilename || '');
@@ -137,7 +138,7 @@ export default function QueryRunner() {
           }
           
           setIsRestoredQuery(true);
-          console.log('Saved query and export settings loaded successfully from navigation state');
+          console.log(`Query loaded successfully from navigation state (source: ${navigationState.source})`);
           // Clear the navigation state by replacing the history entry
           window.history.replaceState({}, document.title);
           return; // Don't load current query if we're loading a saved one
@@ -305,6 +306,30 @@ export default function QueryRunner() {
               fetchedCount: response.data.fetchedCount,
               timestamp: new Date().toISOString()
             };
+
+            // Update query history for Dashboard
+            try {
+              const queryHistory = JSON.parse(localStorage.getItem('queryHistory') || '[]');
+              const historyItem = {
+                query: query,
+                timestamp: new Date().toISOString(),
+                totalSize: response.data.totalSize,
+                fetchedCount: response.data.fetchedCount
+              };
+              
+              // Remove any existing entry with the same query
+              const filteredHistory = queryHistory.filter((item: any) => item.query !== query);
+              
+              // Add new entry at the beginning
+              filteredHistory.unshift(historyItem);
+              
+              // Keep only the last 10 queries
+              const trimmedHistory = filteredHistory.slice(0, 10);
+              
+              localStorage.setItem('queryHistory', JSON.stringify(trimmedHistory));
+            } catch (historyError) {
+              console.log('Could not update query history, but this is not critical.');
+            }
             
             try {
               // Calculate approximate size of the data
@@ -645,6 +670,18 @@ export default function QueryRunner() {
     });
   };
 
+  const analyzeData = () => {
+    console.log('Navigating to Analytics with query results');
+    navigate('/analytics', { 
+      state: { 
+        data: results,
+        query: query,
+        totalSize: totalSize,
+        fetchedCount: fetchedCount
+      } 
+    });
+  };
+
   return (
     <QueryResultsContext.Provider value={{ results, columns, query, totalSize }}>
       <Box>
@@ -723,6 +760,7 @@ export default function QueryRunner() {
                 <MenuItem value={10000}>10,000 records</MenuItem>
                 <MenuItem value={25000}>25,000 records</MenuItem>
                 <MenuItem value={50000}>50,000 records (⚠️ Slow)</MenuItem>
+                <MenuItem value={100000}>100,000 records (⚠️ Very Slow)</MenuItem>
                 <MenuItem value={0}>Unlimited (⚠️ Risk)</MenuItem>
               </Select>
             </FormControl>
@@ -734,7 +772,15 @@ export default function QueryRunner() {
                 💡 <strong>Tip:</strong> Monitor server logs for progress. Use Ctrl+C to stop if needed.
               </Alert>
             )}
-            {recordLimit >= 25000 && recordLimit !== 0 && (
+            
+            {recordLimit >= 100000 && recordLimit > 0 && (
+              <Alert severity="info" sx={{ flex: 1 }}>
+                <strong>Large dataset:</strong> Fetching {recordLimit.toLocaleString()} records may take 1-2 minutes.
+                <br />
+                💡 <strong>Performance:</strong> Consider using filters in your SOQL query to reduce the dataset size.
+              </Alert>
+            )}
+            {recordLimit >= 25000 && recordLimit < 100000 && recordLimit !== 0 && (
               <Alert severity="info" sx={{ flex: 1 }}>
                 <strong>Large limit:</strong> May take longer to load
               </Alert>
@@ -803,6 +849,16 @@ export default function QueryRunner() {
               disabled={results.length === 0}
             >
               Inspect Data
+            </Button>
+            
+            <Button
+              variant="outlined"
+              startIcon={<AnalyticsIcon />}
+              onClick={analyzeData}
+              disabled={results.length === 0}
+              color="secondary"
+            >
+              Analytics
             </Button>
           </Box>
         </Paper>
