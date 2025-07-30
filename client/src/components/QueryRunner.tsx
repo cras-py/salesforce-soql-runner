@@ -58,6 +58,48 @@ export default function QueryRunner() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Function to flatten nested SOQL objects into separate columns
+  const flattenSOQLObject = (obj: any, parentKey = ''): any => {
+    const flattened: any = {};
+    
+    for (const [key, value] of Object.entries(obj)) {
+      // Skip attributes field as it's Salesforce metadata
+      if (key === 'attributes') {
+        continue;
+      }
+      
+      const newKey = parentKey ? `${parentKey}.${key}` : key;
+      
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        // If it's an object and has an 'attributes' field, it's a Salesforce relationship
+        if (value.hasOwnProperty('attributes')) {
+          // Recursively flatten the relationship object
+          Object.assign(flattened, flattenSOQLObject(value, newKey));
+        } else {
+          // Regular object, just stringify it
+          flattened[newKey] = value;
+        }
+      } else {
+        // Primitive value or null
+        flattened[newKey] = value;
+      }
+    }
+    
+    return flattened;
+  };
+
+  // Function to get all possible column names from the dataset
+  const getAllColumnNames = (data: any[]): string[] => {
+    const allColumns = new Set<string>();
+    
+    data.forEach(record => {
+      const flattened = flattenSOQLObject(record);
+      Object.keys(flattened).forEach(key => allColumns.add(key));
+    });
+    
+    return Array.from(allColumns).sort();
+  };
+
   useEffect(() => {
     // Check if File System Access API is supported
     const hasDirectoryPicker = 'showDirectoryPicker' in window;
@@ -205,14 +247,17 @@ export default function QueryRunner() {
       
       if (response.data.success) {
         const data = response.data.data;
-        setResults(data);
+        
+        // Flatten all records to expand nested objects into separate columns
+        const flattenedData = data.map((record: any) => flattenSOQLObject(record));
+        
+        setResults(flattenedData);
         setTotalSize(response.data.totalSize);
         setFetchedCount(response.data.fetchedCount);
         
-        // Generate columns from the first record
-        if (data.length > 0) {
-          const firstRecord = data[0];
-          const allKeys = Object.keys(firstRecord).filter(key => key !== 'attributes');
+        // Generate columns from all possible fields across all records
+        if (flattenedData.length > 0) {
+          const allKeys = getAllColumnNames(data);
           
           console.log(`Processing ${allKeys.length} columns for DataGrid:`, allKeys);
           
@@ -254,7 +299,7 @@ export default function QueryRunner() {
             // Store query results for Data Inspector sidebar navigation
             // Use smart storage strategy to avoid localStorage quota issues
             const queryResults = {
-              data: data,
+              data: flattenedData,
               query: query,
               totalSize: response.data.totalSize,
               fetchedCount: response.data.fetchedCount,
@@ -266,7 +311,7 @@ export default function QueryRunner() {
               const dataSize = JSON.stringify(queryResults).length;
               const dataSizeMB = (dataSize / (1024 * 1024)).toFixed(2);
               
-              console.log(`Query results size: ${dataSizeMB}MB (${data.length} records, ${allKeys.length} columns)`);
+              console.log(`Query results size: ${dataSizeMB}MB (${flattenedData.length} records, ${allKeys.length} columns)`);
               
               // Only store in localStorage if data is reasonably small (< 5MB)
               if (dataSize < 5 * 1024 * 1024) {
@@ -813,7 +858,7 @@ export default function QueryRunner() {
               </Alert>
             )}
             
-            <Box sx={{ height: 600, width: '100%', overflow: 'auto' }}>
+            <Box sx={{ height: 600, width: '100%' }}>
               <DataGrid
                 rows={results.map((row, index) => ({ id: index, ...row }))}
                 columns={columns}
@@ -827,30 +872,17 @@ export default function QueryRunner() {
                 disableColumnResize={false}
                 disableVirtualization={false}
                 sx={{
-                  minWidth: 'max-content',
-                  '& .MuiDataGrid-root': {
-                    overflow: 'visible',
-                  },
-                  '& .MuiDataGrid-main': {
-                    overflow: 'visible',
-                  },
-                  '& .MuiDataGrid-virtualScroller': {
-                    overflow: 'visible',
-                  },
+                  width: '100%',
+                  height: '100%',
                   '& .MuiDataGrid-cell': {
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                   },
                   '& .MuiDataGrid-columnHeaders': {
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 1,
                     backgroundColor: 'background.paper',
                   },
                   '& .MuiDataGrid-footerContainer': {
-                    position: 'sticky',
-                    bottom: 0,
                     backgroundColor: 'background.paper',
                     borderTop: '1px solid',
                     borderColor: 'divider',
